@@ -37,7 +37,6 @@
                     <parametrType>date</parametrType>
                     <parametrRequired>true</parametrRequired>
                 </parametr>
-
             </params>
             <reportPages>
                 <reportPage codePage="page1">
