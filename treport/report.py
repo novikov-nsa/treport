@@ -51,6 +51,13 @@ class Report():
 
 
     def __init__(self, report_code, path_to_params_reports_file, param_values, db_url):
+        '''
+
+        :param report_code:  Код отчета
+        :param path_to_params_reports_file: Путь к XML-файлу, в котором хранится описание свойств отчетов.
+        :param param_values: Значение параметров.
+        :param db_url: URL подклбчения к базе данных
+        '''
         self.logger = lg.get_logger(__name__)
         self.codeReport = report_code
         self.paramValues = param_values
@@ -68,7 +75,13 @@ class Report():
         xmlschema = etree.XMLSchema(xsd_doc)
         return xmlschema.validate(xml_doc)
 
-    def generate_file_name(self, filename_rule):
+    def generate_file_name(self, filename_rule) -> str:
+        '''
+        Формирует имя файла по правилу, которое описано внутри элемента fileNameGenerateRule.
+
+        :param filename_rule: содержимое элемента fileNameGenerateRule
+        :return: имя файла
+        '''
         tmp_rule = []
         for item_rule in filename_rule:
             if item_rule.attrib['segmentType'] == 'segmentString':
