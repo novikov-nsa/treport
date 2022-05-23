@@ -42,7 +42,8 @@ CREATE TABLE treport.documents (
 	docsum2 numeric NOT NULL
 );
 ~~~
-Содержимое таблицы представлено в файле _documents.csv_. Для импорта данных из CSV-файла необходимо выполнить команду
+Содержимое таблицы представлено в файле [documents.csv](https://github.com/novikov-nsa/treport/blob/master/treport_example/documents.csv). 
+Для импорта данных из CSV-файла необходимо выполнить команду
 
 ~~~sql
 copy treport.documents(docnum, docdate, docsum, docsum2) from '/path/to/documents.csv' delimiter ';' csv header;
@@ -114,7 +115,7 @@ params_reports = run_report.xml
 можно приступить к написанию скрипта, который вызовет бибилиотеку и сформирует отчет.
 
 ~~~python
-from treport.report import Report, get_config
+from src.treport.report import Report, get_config
 
 if __name__ == '__main__':
     parameters = {'p_start_date': '01.05.2022', 'p_end_date': '31.05.2022'}
