@@ -1,4 +1,4 @@
-from treport.report import Report, get_config
+from src.treport.report import Report, get_config
 
 if __name__ == '__main__':
     parameters = {'p_start_date': '01.05.2022', 'p_end_date': '31.05.2022'}

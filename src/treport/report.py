@@ -7,7 +7,7 @@ import openpyxl as xlsx
 import postgres as pg
 from jinja2 import Template
 import logging
-import treport.logger as lg
+from . import logger as lg
 
 DIR = Path(__file__).resolve().parent
 XSD_FILE_NAME = os.path.join(DIR, 'treport.xsd')
