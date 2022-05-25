@@ -5,7 +5,7 @@ from pathlib import Path
 from lxml import etree
 import openpyxl as xlsx
 import postgres as pg
-from jinja2 import Template
+from jinja2 import Template, Environment, FileSystemLoader, meta
 import logging
 from . import logger as lg
 
@@ -25,28 +25,44 @@ def get_config(path_to_inifile):
     return db_url, path_to_params_reports_file
 
 class Report():
+    # Код отчета
     codeReport = ''
+    # Наименование отчета
     nameReport = ''
+    # Путь к файлу шаблона
     template = ''
+    # Путь к каталогу, в котором может быть сохранен файл отчета
     outDir = ''
+    # Параметры отчета
     params_report = {}
+
+    # Результат проверки XM-файла на соответствие XSD-схеме
     xml_validation_result : bool = None
+
+    # Имя файла отчета
     report_file_name = ''
-    reportPages = {}
+
     '''reportPages - атрибут, в котором хранятся сведения о листе отчета. Атрибут является словарем и имеет следующие ключи:
-    pageName - имя листа в xlsx-файле
-    sqlFile - путь к файлу, в котором хранится SQL-запрос
-    headerRows - количество строк на листе, которые выделены под заголовок
-    ignoredColumns - список номеров колонок, которые необходимо игнорировать при формировании отчета
-    sqlText - текст SQL-запроса, который сформирован на основании текста в файле с подставленными значениями параметров запроса
-    sqlResult - результат выполнения SQL-запроса
-    '''
+        pageName - имя листа в xlsx-файле
+        sqlFile - путь к файлу, в котором хранится SQL-запрос
+        headerRows - количество строк на листе, которые выделены под заголовок
+        ignoredColumns - список номеров колонок, которые необходимо игнорировать при формировании отчета
+        sqlText - текст SQL-запроса, который сформирован на основании текста в файле с подставленными значениями параметров запроса
+        sqlResult - результат выполнения SQL-запроса
+        '''
+    reportPages = {}
+    # Контент сформированного отчета
     contentReport = None
-    '''
-    Контент сформированного отчета. 
-    '''
+
+    # Значения с параметрами отчета
     paramValues = {}
+
+    # URL  подключения к БД
     dbUrl = ''
+
+    checkParamsResult : bool = False
+    isCorrect : bool = None
+
     logger = logging.Logger
 
 
@@ -63,10 +79,15 @@ class Report():
         self.paramValues = param_values
         self.get_params_report(path_to_params_reports_file)
         if self.xml_validation_result:
-            self.generate_sql()
-            self.dbUrl = db_url
-            self.get_dataset()
-            self.generate_report()
+            self.checkParamsResult = self.check_params()
+            if self.checkParamsResult:
+                self.generate_sql()
+                if self.isCorrect:
+                    self.dbUrl = db_url
+                    self.get_dataset()
+                    self.generate_report()
+            else:
+                self.logger.error(f'Параметры отчета не соответствуют списку параметроа в XML-файле {path_to_params_reports_file}')
         else:
             self.logger.error(f'Проверка XML-файла {path_to_params_reports_file} проведена, файл имеет ошибки')
 
@@ -110,6 +131,8 @@ class Report():
         self.xml_validation_result = self.validate_params_report(xml_doc, xsd_doc)
         if self.xml_validation_result:
             self.logger.info(f'Проверка XML-файла {path_to_params_reports_file} проведена, файл корректен')
+            if self.isCorrect or self.isCorrect is None:
+                self.isCorrect = True
             xml_root = xml_doc.getroot()[0]
 
             for item_report in xml_root:
@@ -125,11 +148,6 @@ class Report():
                     self.outDir = item_report[2].text           # Путь к каталогу, где будет сохраняться отчет
                     self.logger.info(f'Путь к каталогу, где будет сохраняться отчет: {self.template}')
 
-                    file_name_rule = item_report[3]             # Правило конструирования имени файла
-                    self.report_file_name = self.generate_file_name(file_name_rule)
-                    self.logger.info(f'Имя файла отчета: {self.template}')
-
-
                     params = item_report[4]                     # Параметры отчета
                     self.logger.info(f'Параметры отчета {self.codeReport}')
                     for item_params in params:
@@ -138,6 +156,14 @@ class Report():
                         for parametr in item_params:
                             self.params_report[parametr_code][parametr.tag] = parametr.text
                             self.logger.info(f'Параметр: {parametr_code}, значение: {parametr.text}')
+
+                    file_name_rule = item_report[3]  # Правило конструирования имени файла
+                    self.checkParamsResult = self.check_params()
+                    if self.checkParamsResult:
+                        self.report_file_name = self.generate_file_name(file_name_rule)
+                        self.logger.info(f'Имя файла отчета: {self.template}')
+                    else:
+                        self.logger.error(f'Невозможно сконструировать имя файла отчета: {self.template}')
 
                     report_pages = item_report[5]               # Свойства каждой страницы отчета
                     self.logger.info(f'Свойства страниц отчета {self.codeReport}')
@@ -159,15 +185,62 @@ class Report():
                             if parametr_page.tag not in ('ignoredColumns', 'headerRows'):
                                 self.reportPages[page_code][parametr_page.tag] = parametr_page.text
                         self.logger.info(f'Страница {page_code} параметр {parametr_page} значение {parametr_page.text}')
+                else:
+                    self.isCorrect = False
 
+    def check_params(self):
+        '''
+        Проверяет значения передаваемых параметров на соответствие списку допустимых значений.
+        :return:
+        '''
+        missing_parametrs = []
+        for item_param_value in self.paramValues:
+            if item_param_value not in self.params_report:
+                missing_parametrs.append(item_param_value)
+        if len(missing_parametrs) > 0:
+            self.logger.error(f'В запрос передаются параметры, отсутствующие в списке допустимых: {", ".join(missing_parametrs)}')
+            if self.isCorrect or self.isCorrect is None:
+                self.isCorrect = False
+            return False
+        else:
+            if self.isCorrect is None:
+                self.isCorrect = True
+            return True
 
 
     def generate_sql(self):
+        '''
+        В содержимом файла SQL-запроса заполняет значения параметров. В текстовом файле должна использоваться нотоция,
+        принятая в шаблонизаторе Jinja2.
+
+        Результат работы метода сохраняется в атрибуте класса reportPages.
+
+        :return:
+        '''
+
         for report_page in self.reportPages:
-            f = open(self.reportPages[report_page]['sqlFile'])
-            template = Template(f.read())
-            self.reportPages[report_page]['sqlText'] = template.render(self.paramValues)
-            self.logger.info(f'SQL-файл отчета {self.codeReport} для страницы {report_page} сформирован')
+            template_file_name = self.reportPages[report_page]['sqlFile']
+            env = Environment(loader=FileSystemLoader('.'))
+            template_source = env.loader.get_source(env, template_file_name)[0]
+            parsed_content = env.parse(template_source)
+
+            missing_parametrs_in_template = []
+            for parametr_in_template in meta.find_undeclared_variables(parsed_content):
+                if parametr_in_template not in self.params_report:
+                    missing_parametrs_in_template.append(parametr_in_template)
+
+            if len(missing_parametrs_in_template) == 0:
+                f = open(template_file_name)
+                template = Template(f.read())
+                self.reportPages[report_page]['sqlText'] = template.render(self.paramValues)
+                self.logger.info(f'SQL-файл отчета {self.codeReport} для страницы {report_page} сформирован')
+                if self.isCorrect is None:
+                    self.isCorrect = True
+            else:
+                if self.isCorrect or self.isCorrect is None:
+                    self.isCorrect = False
+                self.logger.error(f'В тексте SQL-запроса присутствуют параметры, отсутствующие в списке допустимых: '
+                                  f'{", ".join(missing_parametrs_in_template)}')
 
 
 
@@ -186,12 +259,12 @@ class Report():
 
     def generate_table(self, ws, header, list_page, code_page):
         '''
-        Функция формирования файла в формате OpenXML (xlsx) по результатам SQL-запроса
+        Заполнение листа книги MS Excel.
 
-        :param ws: лист рабочей книги эксель
-        :param header: количество строк в таблице, отведенных под заголовок
+        :param ws: лист рабочей книги MS Excel
+        :param header: количество строк в таблице отведенных под заголовок
         :param list_page: результат запроса к БД
-        :param name_sheet: наименование листа рабочей книги эксель
+        :param name_sheet: наименование листа рабочей книги MS Excel
         :return:
         '''
         counter = 0
@@ -209,6 +282,11 @@ class Report():
         self.delete_rows(ws, counter + header)
 
     def generate_report(self):
+        '''
+        Функция формирования файла в формате OpenXML (xlsx) по результатам SQL-запроса.
+
+        :return:
+        '''
         wb = xlsx.load_workbook(filename=self.template, read_only=False, keep_vba=False, data_only=False)
         self.logger.info(f'Формирование файла отчета {self.codeReport} в формате MS Excel начато')
 
