@@ -151,7 +151,7 @@ if __name__ == '__main__':
     db_url, path_to_params_reports_file = get_config('run_report.ini')
     report = Report('treport_example', path_to_params_reports_file, parameters, db_url)
 
-    if report.xml_validation_result:
+    if report.isCorrect:
         report.contentReport.save(report.outDir + report.report_file_name)
         report.logger.info(f'Файл {report.outDir + report.report_file_name} сохранен')
 ~~~
