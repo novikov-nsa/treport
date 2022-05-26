@@ -185,8 +185,8 @@ class Report():
                             if parametr_page.tag not in ('ignoredColumns', 'headerRows'):
                                 self.reportPages[page_code][parametr_page.tag] = parametr_page.text
                         self.logger.info(f'Страница {page_code} параметр {parametr_page} значение {parametr_page.text}')
-                else:
-                    self.isCorrect = False
+        else:
+            self.isCorrect = False
 
     def check_params(self):
         '''
