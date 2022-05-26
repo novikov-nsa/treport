@@ -79,7 +79,7 @@
         <annotation></annotation>
         <restriction base="string">
             <enumeration value="date"/>
-            <enumeration value="qslstring"/>
+            <enumeration value="sqlstring"/>
             <enumeration value="boolean"/>
         </restriction>
     </simpleType>
