@@ -7,7 +7,7 @@ import openpyxl as xlsx
 import postgres as pg
 from jinja2 import Template, Environment, FileSystemLoader, meta
 import logging
-from . import logger as lg
+from treport.logger import get_logger
 
 DIR = Path(__file__).resolve().parent
 XSD_FILE_NAME = os.path.join(DIR, 'treport.xsd')
@@ -23,6 +23,10 @@ def get_config(path_to_inifile):
     db_url = f'postgresql://{login}:{password}@{host}:{port}/{database}'
     path_to_params_reports_file = config.get('report', 'params_reports')
     return db_url, path_to_params_reports_file
+
+def validate_params_report(xml_doc, xsd_doc):
+    xmlschema = etree.XMLSchema(xsd_doc)
+    return xmlschema.validate(xml_doc)
 
 class Report():
     # Код отчета
@@ -74,7 +78,7 @@ class Report():
         :param param_values: Значение параметров.
         :param db_url: URL подклбчения к базе данных
         '''
-        self.logger = lg.get_logger(__name__)
+        self.logger = get_logger(__name__)
         self.codeReport = report_code
         self.paramValues = param_values
         self.get_params_report(path_to_params_reports_file)
@@ -92,9 +96,7 @@ class Report():
             self.logger.error(f'Проверка XML-файла {path_to_params_reports_file} проведена, файл имеет ошибки')
 
 
-    def validate_params_report(self, xml_doc, xsd_doc):
-        xmlschema = etree.XMLSchema(xsd_doc)
-        return xmlschema.validate(xml_doc)
+
 
     def generate_file_name(self, filename_rule) -> str:
         '''
@@ -128,9 +130,10 @@ class Report():
         xml_f = open(path_to_params_reports_file)
         xsd_doc = etree.parse(xsd_f)
         xml_doc = etree.parse(xml_f)
-        self.xml_validation_result = self.validate_params_report(xml_doc, xsd_doc)
+        validation_result = validate_params_report(xml_doc=xml_doc, xsd_doc=xsd_doc)
+        self.xml_validation_result = validation_result
         if self.xml_validation_result:
-            self.logger.info(f'Проверка XML-файла {path_to_params_reports_file} проведена, файл корректен')
+            self.logger.info('Проверка XML-файла '+path_to_params_reports_file+' проведена, файл корректен')
             if self.isCorrect or self.isCorrect is None:
                 self.isCorrect = True
             xml_root = xml_doc.getroot()[0]
@@ -220,7 +223,7 @@ class Report():
 
         for report_page in self.reportPages:
             template_file_name = self.reportPages[report_page]['sqlFile']
-            env = Environment(loader=FileSystemLoader('.'))
+            env = Environment(loader=FileSystemLoader(''))
             template_source = env.loader.get_source(env, template_file_name)[0]
             parsed_content = env.parse(template_source)
 
