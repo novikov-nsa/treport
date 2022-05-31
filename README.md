@@ -218,7 +218,7 @@ python -m treport --report treport_example --parameters-file run_report_params.t
 ```
 
 Параметры подключения к базе данных и имя XML-файла будут прочитаны из
-файла ```treport.ini```, параметры формирования отчета - из файла ```run_report_params.txt```.
+файла ```treport.ini```, параметры формирования отчета - из файла [```run_report_params.txt```](https://github.com/novikov-nsa/treport/blob/master/treport_example/run_report_params.txt).
 
 __Пример 4__
 
