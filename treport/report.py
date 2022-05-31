@@ -7,7 +7,7 @@ import openpyxl as xlsx
 import postgres as pg
 from jinja2 import Template, Environment, FileSystemLoader, meta
 import logging
-from . import logger as lg
+from treport.logger import get_logger
 
 DIR = Path(__file__).resolve().parent
 XSD_FILE_NAME = os.path.join(DIR, 'treport.xsd')
@@ -23,6 +23,10 @@ def get_config(path_to_inifile):
     db_url = f'postgresql://{login}:{password}@{host}:{port}/{database}'
     path_to_params_reports_file = config.get('report', 'params_reports')
     return db_url, path_to_params_reports_file
+
+def validate_params_report(xml_doc, xsd_doc):
+    xmlschema = etree.XMLSchema(xsd_doc)
+    return xmlschema.validate(xml_doc)
 
 class Report():
     # Код отчета
@@ -74,11 +78,11 @@ class Report():
         :param param_values: Значение параметров.
         :param db_url: URL подклбчения к базе данных
         '''
-        self.logger = lg.get_logger(__name__)
+        self.logger = get_logger(__name__)
         self.codeReport = report_code
         self.paramValues = param_values
         self.get_params_report(path_to_params_reports_file)
-        if self.xml_validation_result:
+        if self.isCorrect:
             self.checkParamsResult = self.check_params()
             if self.checkParamsResult:
                 self.generate_sql()
@@ -92,9 +96,13 @@ class Report():
             self.logger.error(f'Проверка XML-файла {path_to_params_reports_file} проведена, файл имеет ошибки')
 
 
-    def validate_params_report(self, xml_doc, xsd_doc):
-        xmlschema = etree.XMLSchema(xsd_doc)
-        return xmlschema.validate(xml_doc)
+    def set_iscorrect_true(self):
+        if self.isCorrect or self.isCorrect is None:
+            self.isCorrect = True
+
+    def set_iscorrect_false(self):
+        if self.isCorrect or self.isCorrect is None:
+            self.isCorrect = False
 
     def generate_file_name(self, filename_rule) -> str:
         '''
@@ -124,19 +132,21 @@ class Report():
         return result_file_name
 
     def get_params_report(self, path_to_params_reports_file):
+        _code_report_find = False
         xsd_f = open(XSD_FILE_NAME)
         xml_f = open(path_to_params_reports_file)
         xsd_doc = etree.parse(xsd_f)
         xml_doc = etree.parse(xml_f)
-        self.xml_validation_result = self.validate_params_report(xml_doc, xsd_doc)
+        validation_result = validate_params_report(xml_doc=xml_doc, xsd_doc=xsd_doc)
+        self.xml_validation_result = validation_result
         if self.xml_validation_result:
-            self.logger.info(f'Проверка XML-файла {path_to_params_reports_file} проведена, файл корректен')
-            if self.isCorrect or self.isCorrect is None:
-                self.isCorrect = True
+            self.logger.info('Проверка XML-файла '+path_to_params_reports_file+' проведена, файл корректен')
+            self.set_iscorrect_true()
             xml_root = xml_doc.getroot()[0]
 
             for item_report in xml_root:
                 if item_report.attrib['codeReport'] == self.codeReport:
+                    _code_report_find = True
                     self.logger.info(f'Чтение блока параметров отчета {self.codeReport}')
 
                     self.nameReport = item_report[0].text       # Наименование отчета
@@ -185,6 +195,11 @@ class Report():
                             if parametr_page.tag not in ('ignoredColumns', 'headerRows'):
                                 self.reportPages[page_code][parametr_page.tag] = parametr_page.text
                         self.logger.info(f'Страница {page_code} параметр {parametr_page} значение {parametr_page.text}')
+            if _code_report_find:
+                self.set_iscorrect_true()
+            else:
+                self.set_iscorrect_false()
+                self.logger.error(f'Код отчета {self.codeReport} отсутствует в списке допустимых значений' )
         else:
             self.isCorrect = False
 
@@ -199,12 +214,10 @@ class Report():
                 missing_parametrs.append(item_param_value)
         if len(missing_parametrs) > 0:
             self.logger.error(f'В запрос передаются параметры, отсутствующие в списке допустимых: {", ".join(missing_parametrs)}')
-            if self.isCorrect or self.isCorrect is None:
-                self.isCorrect = False
+            self.set_iscorrect_false()
             return False
         else:
-            if self.isCorrect is None:
-                self.isCorrect = True
+            self.set_iscorrect_true()
             return True
 
 
@@ -220,7 +233,7 @@ class Report():
 
         for report_page in self.reportPages:
             template_file_name = self.reportPages[report_page]['sqlFile']
-            env = Environment(loader=FileSystemLoader('.'))
+            env = Environment(loader=FileSystemLoader(''))
             template_source = env.loader.get_source(env, template_file_name)[0]
             parsed_content = env.parse(template_source)
 
@@ -246,11 +259,13 @@ class Report():
 
     def get_dataset(self):
         db = pg.Postgres(url=self.dbUrl)
+        self.logger.info(f'Подключение к {self.dbUrl} выполнено')
         for report_page in self.reportPages:
             sql_text = self.reportPages[report_page]['sqlText']
+            self.logger.info(f'Запрос к БД для формирования отчета {self.codeReport} для страницы {report_page} стартует')
             data_set_page = db.all(sql_text)
             self.reportPages[report_page]['sqlResult'] = data_set_page
-            self.logger.info(f'Запрос к БД для формирвоания отчета {self.codeReport} для страницы {report_page} выполнен')
+            self.logger.info(f'Запрос к БД для формирования отчета {self.codeReport} для страницы {report_page} выполнен')
 
     def delete_rows(self, ws, max_data_rows):
         max_sheet_rows = ws.max_row
