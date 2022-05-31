@@ -41,9 +41,12 @@ if __name__ == '__main__':
                                    help='Указывается путь конфигурационному файлу')
     arg_parser.add_argument('-r', '--report', action='store',
                             help='Код формируемого отчета')
-    arg_parser.add_argument('-p', '--parametrs', action='store', help='Параметры отчета. Например: "param_name1:value_param1;param_name2:value_param2"')
+    arg_parser.add_argument('-pf', '--parameters-file', action='store', help='Файл с параметрами отчета')
+    arg_parser.add_argument('-p', '--parameters', action='store', help='Параметры отчета. Например: "param_name1:value_param1;param_name2:value_param2"')
 
     args = arg_parser.parse_args()
+
+    # Проверка наличия параметра config
     if args.config:
         configfile = args.config
     else:
@@ -54,23 +57,41 @@ if __name__ == '__main__':
             sys.exit()
     logger.info(f'Конфигурационный файл {configfile}')
 
+    # Проверка наличия параметра report
     if args.report:
         report_code = args.report
     else:
         logger.error(f'Параметр --report обязательный для использования')
         sys.exit()
 
-    if args.parametrs:
-        parametrs_str : str = args.parametrs
-        list_parametrs = []
-        for item in parametrs_str.split(';'):
-            list_parametrs.append(item)
+    # Проверка наличия параметров parameters-file или parameters
+    if args.parameters_file:
+        with open(args.parameters_file) as f:
+            list_parameters = f.readlines()
+        for item in list_parameters:
+            parameters[item.split('=')[0]] = item.split('=')[1].replace("\n", "")
 
-        for item in list_parametrs:
-            parameters[item.split(':')[0]] = item.split(':')[1]
+        if args.parameters:
+            parameters_str: str = args.parameters
+            list_parameters = []
+            for item in parameters_str.split(';'):
+                list_parameters.append(item)
+
+            for item in list_parameters:
+                parameters[item.split(':')[0]] = item.split(':')[1]
+
     else:
-        logger.error(f'Параметр --parametrs обязательный для использования')
-        sys.exit()
+        if args.parameters:
+            parameters_str: str = args.parameters
+            list_parameters = []
+            for item in parameters_str.split(';'):
+                list_parameters.append(item)
+
+            for item in list_parameters:
+                parameters[item.split(':')[0]] = item.split(':')[1]
+        else:
+            logger.error(f'Параметр --parameters обязательный для использования')
+            sys.exit()
 
     db_url, path_to_params_reports_file = get_config(configfile)
     report = Report(report_code, path_to_params_reports_file, parameters, db_url)
