@@ -1,6 +1,7 @@
 import configparser
 import datetime
 import os.path
+from sys import platform
 from pathlib import Path
 from lxml import etree
 import openpyxl as xlsx
@@ -134,7 +135,7 @@ class Report():
     def get_params_report(self, path_to_params_reports_file):
         _code_report_find = False
         xsd_f = open(XSD_FILE_NAME)
-        xml_f = open(path_to_params_reports_file)
+        xml_f = open(path_to_params_reports_file, encoding='utf-8')
         xsd_doc = etree.parse(xsd_f)
         xml_doc = etree.parse(xml_f)
         validation_result = validate_params_report(xml_doc=xml_doc, xsd_doc=xsd_doc)
