@@ -194,9 +194,13 @@ class Report():
                                 for item in igonred_columns:
                                     int_ignored_columns.append(int(item))
                                 self.reportPages[page_code][parametr_page.tag] = int_ignored_columns
+                                self.logger.info(
+                                    f'Страница {page_code} свойство "{parametr_page.tag}" значение "{parametr_page.text}"')
 
                             if parametr_page.tag == 'headerRows':
                                 self.reportPages[page_code][parametr_page.tag] = int(parametr_page.text)
+                                self.logger.info(
+                                    f'Страница {page_code} свойство "{parametr_page.tag}" значение "{parametr_page.text}"')
 
                             if parametr_page.tag == 'headerParameters':
                                 header_parameters = {}
@@ -204,7 +208,7 @@ class Report():
                                     header_parameters[item_parameter[0].text] = {}
                                     header_parameters[item_parameter[0].text]['row'] = int(item_parameter[1].text)
                                     header_parameters[item_parameter[0].text]['column'] = int(item_parameter[2].text)
-                                    self.logger.info(f'Страница {page_code}, параметр {item_parameter[0].text} выводится'
+                                    self.logger.info(f'Страница {page_code}, свойство "Вывод значений параметров в заголовке". Параметр {item_parameter[0].text} выводится'
                                                      f' в заголовке отчета, строка {item_parameter[1].text} колонка {item_parameter[2].text}')
 
                                 for item_header_parameter in header_parameters:
@@ -217,7 +221,7 @@ class Report():
 
                             if parametr_page.tag not in ('ignoredColumns', 'headerRows', 'headerParameters'):
                                 self.reportPages[page_code][parametr_page.tag] = parametr_page.text
-                        self.logger.info(f'Страница {page_code} параметр {parametr_page} значение {parametr_page.text}')
+                                self.logger.info(f'Страница {page_code} свойство "{parametr_page.tag}" значение "{parametr_page.text}"')
             if _code_report_find:
                 self.set_iscorrect_true()
             else:
@@ -316,8 +320,13 @@ class Report():
             col_count = 0
             for field in item:
                 col_count += 1
-                if col_count not in self.reportPages[code_page]['ignoredColumns']:
+                if 'ignoredColumns' in self.reportPages[code_page].keys():
+                    if col_count not in self.reportPages[code_page]['ignoredColumns']:
+                        ws.cell(row=line_number, column=col_count).value = item[col_count - 1]
+                else:
                     ws.cell(row=line_number, column=col_count).value = item[col_count - 1]
+
+
 
         self.logger.info(f'Лист {code_page} отчета {self.codeReport} заполнен')
 
