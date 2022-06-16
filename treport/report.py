@@ -1,6 +1,7 @@
 import configparser
 import datetime
 import os.path
+import sys
 from sys import platform
 from pathlib import Path
 from lxml import etree
@@ -54,6 +55,10 @@ class Report():
         ignoredColumns - список номеров колонок, которые необходимо игнорировать при формировании отчета
         sqlText - текст SQL-запроса, который сформирован на основании текста в файле с подставленными значениями параметров запроса
         sqlResult - результат выполнения SQL-запроса
+        headerParameters - информация для вывода параметров отчета в заголовке, является словарем и имеет следующую структуру:
+            <имя параметра> - имя параметра;
+            row - строка, в которой необходимо вывести значение параметра;
+            column- колонка, в которой необходимо вывести значение параметра.
         '''
     reportPages = {}
     # Контент сформированного отчета
@@ -189,13 +194,34 @@ class Report():
                                 for item in igonred_columns:
                                     int_ignored_columns.append(int(item))
                                 self.reportPages[page_code][parametr_page.tag] = int_ignored_columns
+                                self.logger.info(
+                                    f'Страница {page_code} свойство "{parametr_page.tag}" значение "{parametr_page.text}"')
 
                             if parametr_page.tag == 'headerRows':
                                 self.reportPages[page_code][parametr_page.tag] = int(parametr_page.text)
+                                self.logger.info(
+                                    f'Страница {page_code} свойство "{parametr_page.tag}" значение "{parametr_page.text}"')
 
-                            if parametr_page.tag not in ('ignoredColumns', 'headerRows'):
+                            if parametr_page.tag == 'headerParameters':
+                                header_parameters = {}
+                                for item_parameter in parametr_page:
+                                    header_parameters[item_parameter[0].text] = {}
+                                    header_parameters[item_parameter[0].text]['row'] = int(item_parameter[1].text)
+                                    header_parameters[item_parameter[0].text]['column'] = int(item_parameter[2].text)
+                                    self.logger.info(f'Страница {page_code}, свойство "Вывод значений параметров в заголовке". Параметр {item_parameter[0].text} выводится'
+                                                     f' в заголовке отчета, строка {item_parameter[1].text} колонка {item_parameter[2].text}')
+
+                                for item_header_parameter in header_parameters:
+                                    if item_header_parameter not in self.paramValues.keys():
+                                        self.logger.error(f'Вывести в заголовок отчета значение параметра {item_header_parameter} невозможно,'
+                                                          f' т.к. данный параметр отсутствует в списке передаваемых значений. '
+                                                          f'Формирование отчета прекращено')
+                                        sys.exit(1)
+                                self.reportPages[page_code][parametr_page.tag] = header_parameters
+
+                            if parametr_page.tag not in ('ignoredColumns', 'headerRows', 'headerParameters'):
                                 self.reportPages[page_code][parametr_page.tag] = parametr_page.text
-                        self.logger.info(f'Страница {page_code} параметр {parametr_page} значение {parametr_page.text}')
+                                self.logger.info(f'Страница {page_code} свойство "{parametr_page.tag}" значение "{parametr_page.text}"')
             if _code_report_find:
                 self.set_iscorrect_true()
             else:
@@ -273,6 +299,10 @@ class Report():
         rows_to_delete = max_sheet_rows - max_data_rows
         ws.delete_rows(max_data_rows + 1, rows_to_delete)
 
+    def generate_header(self, ws, parameters):
+        for parameter_key in parameters:
+            ws.cell(row=parameters[parameter_key]['row'], column=parameters[parameter_key]['column']).value = self.paramValues[parameter_key]
+
     def generate_table(self, ws, header, list_page, code_page):
         '''
         Заполнение листа книги MS Excel.
@@ -290,8 +320,13 @@ class Report():
             col_count = 0
             for field in item:
                 col_count += 1
-                if col_count not in self.reportPages[code_page]['ignoredColumns']:
+                if 'ignoredColumns' in self.reportPages[code_page].keys():
+                    if col_count not in self.reportPages[code_page]['ignoredColumns']:
+                        ws.cell(row=line_number, column=col_count).value = item[col_count - 1]
+                else:
                     ws.cell(row=line_number, column=col_count).value = item[col_count - 1]
+
+
 
         self.logger.info(f'Лист {code_page} отчета {self.codeReport} заполнен')
 
@@ -310,5 +345,8 @@ class Report():
             ws = wb[self.reportPages[report_page]['pageName']]
             header = self.reportPages[report_page]['headerRows']
             dataset_page = self.reportPages[report_page]['sqlResult']
+            if 'headerParameters' in self.reportPages[report_page].keys():
+                parameters = self.reportPages[report_page]['headerParameters']
+                self.generate_header(ws, parameters)
             self.generate_table(ws, header, dataset_page, report_page)
         self.contentReport = wb

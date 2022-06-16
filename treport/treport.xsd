@@ -71,6 +71,13 @@
             <element name="sqlFile" type="string"/>
             <element name="headerRows" type="integer"/>
             <element name="ignoredColumns" minOccurs="0" type="string"/>
+            <element name="headerParameters" minOccurs="0">
+                <complexType>
+                    <sequence>
+                        <element name="parameter" type="self:tHeaderParameter" maxOccurs="unbounded" />
+                    </sequence>
+                </complexType>
+            </element>
         </sequence>
         <attribute name="codePage" type="string" use="required"/>
     </complexType>
@@ -91,5 +98,13 @@
             <enumeration value="function"/>
         </restriction>
     </simpleType>
+    <complexType name="tHeaderParameter">
+        <annotation></annotation>
+        <sequence>
+            <element name="name" type="string"/>
+            <element name="row" type="integer"/>
+            <element name="column" type="integer"/>
+        </sequence>
+    </complexType>
     <element name="tReport" type="self:tReport"/>
 </schema>
